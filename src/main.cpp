@@ -122,7 +122,26 @@ void setupTFLite() {
 }
 
 // =========================================================================
-// DERIVACIÓN DE CLAVE MAESTRA CRIPTOGRÁFICA (SHA-256 KDF)
+// =========================================================================
+// MÁQUINA DE ESTADOS FINITOS (FSM)
+// =========================================================================
+enum SystemState {
+  STATE_LISTENING,     // Monitoreo continuo de audio ambiental (LED Azul)
+  STATE_RECORDING,     // Captura en tiempo real de 1.0s de palabra clave (LED Rojo)
+  STATE_INFERENCE,     // Extracción DSP + Inferencia TinyML INT8 (LED Blanco)
+  STATE_AUTH_SUCCESS,  // Inyección USB-HID + Confirmación (LED Verde)
+  STATE_AUTH_FAILED,   // Notificación de rechazo biométrico (LED Rojo Flash)
+  STATE_COOLDOWN       // Enfriamiento y limpieza de colas I2S/USB (LED Apagado)
+};
+
+SystemState current_state = STATE_LISTENING;
+unsigned long state_timer = 0;
+
+void transitionToState(SystemState new_state);
+void processAudioAndRunInference();
+
+// =========================================================================
+// DERIVACIÓN DE CLAVE MAESTRA CRIPTOGRÁFICA (SHA-256 KDF) & INYECCIÓN USB
 // =========================================================================
 #include "mbedtls/sha256.h"
 
@@ -145,16 +164,24 @@ void injectMasterKeyCredential() {
   }
   hex_str[64] = '\0';
 
-  // Inyectar por USB-HID Keyboard
-  Keyboard.print(hex_str);
-  Keyboard.write(KEY_RETURN);
+  // Inyección carácter por carácter con retardo para evitar desbordamiento del endpoint HID
+  // y asegurar que el sistema operativo reciba cada pulsación sin que se trabe ninguna tecla
+  for (int i = 0; i < 64; i++) {
+    Keyboard.write((uint8_t)hex_str[i]);
+    delay(12); // Tiempo suficiente para que el stack TinyUSB procese el informe
+  }
+  Keyboard.write((uint8_t)KEY_RETURN);
+  delay(20);
+
+  // Seguridad fundamental: liberar explícitamente cualquier tecla residual
+  Keyboard.releaseAll();
 
   // Sobrescribir inmediatamente la memoria RAM sensible con ceros
   memset(hardware_seed, 0, sizeof(hardware_seed));
   memset(derived_key, 0, sizeof(derived_key));
   memset(hex_str, 0, sizeof(hex_str));
 
-  Serial.println(" Credencial derivada inyectada por USB-HID con éxito.");
+  Serial.println("[HID] Credencial derivada inyectada por USB-HID con exito.");
 }
 
 // =========================================================================
@@ -361,29 +388,12 @@ void processAudioAndRunInference() {
   if (cond1 && cond2 && cond3) {
     Serial.println("[OK] AUTENTICACION EXITOSA: Usuario Reconocido");
     consecutive_failures = 0;
-
-    // LED VERDE BRILANTE (1 segundo)
-    setLedColor(false, true, false);
-    
-    // Inyectar credenciales vía USB-HID
-    injectMasterKeyCredential();
-
-    delay(1500);
+    transitionToState(STATE_AUTH_SUCCESS);
   } else {
     Serial.println("[DENEGADO] Muestra no cumple criterios biometricos.");
     consecutive_failures++;
-
-    // LED ROJO PARPADEANTE (Error breve)
-    for (int k = 0; k < 2; k++) {
-      setLedColor(true, false, false);
-      delay(120);
-      setLedColor(false, false, false);
-      delay(120);
-    }
+    transitionToState(STATE_AUTH_FAILED);
   }
-
-  // Volver a estado LISTO (LED AZUL)
-  setLedColor(false, false, true);
 }
 
 // =========================================================================
@@ -397,25 +407,74 @@ void processAudioAndRunInference() {
 int16_t pre_roll_buffer[PRE_ROLL_SAMPLES];
 int pre_roll_idx = 0;
 int vad_consecutive_active_chunks = 0;
+size_t samples_captured = 0;
 
-void listenAndCaptureWithVAD() {
-  // 1. Estado LISTO (ESCUCHANDO): LED AZUL
-  setLedColor(false, false, true);
+// =========================================================================
+// GESTOR DE TRANSICIÓN DE ESTADOS (FSM)
+// =========================================================================
+void transitionToState(SystemState new_state) {
+  current_state = new_state;
+  state_timer = millis();
 
+  switch (current_state) {
+    case STATE_LISTENING:
+      vad_consecutive_active_chunks = 0;
+      samples_captured = 0;
+      setLedColor(false, false, true); // LED Azul
+      break;
+
+    case STATE_RECORDING:
+      setLedColor(true, false, false); // LED Rojo
+      Serial.println("\n[VAD ACTIVADO] Grabando palabra clave (1.0s)...");
+      break;
+
+    case STATE_INFERENCE:
+      setLedColor(true, true, true);   // LED Blanco
+      processAudioAndRunInference();
+      break;
+
+    case STATE_AUTH_SUCCESS:
+      setLedColor(false, true, false); // LED Verde
+      injectMasterKeyCredential();
+      break;
+
+    case STATE_AUTH_FAILED:
+      // LED Rojo Parpadeante
+      for (int k = 0; k < 2; k++) {
+        setLedColor(true, false, false);
+        delay(120);
+        setLedColor(false, false, false);
+        delay(120);
+      }
+      transitionToState(STATE_COOLDOWN);
+      break;
+
+    case STATE_COOLDOWN:
+      setLedColor(false, false, false); // Apagado momentáneo
+      // Drenar y purgar cualquier audio acumulado en los buffers DMA de I2S
+      i2s_zero_dma_buffer(I2S_PORT);
+      size_t dummy_bytes;
+      int32_t dummy_buf[256];
+      for (int i = 0; i < 4; i++) {
+        i2s_read(I2S_PORT, &dummy_buf, sizeof(dummy_buf), &dummy_bytes, 10);
+      }
+      Keyboard.releaseAll(); // Garantizar que el teclado esté 100% liberado
+      break;
+  }
+}
+
+void processListeningState() {
   int32_t i2s_raw[VAD_CHUNK_SIZE];
   size_t bytes_read = 0;
 
-  // Limpiar lecturas residuales del buffer I2S
-  esp_err_t res = i2s_read(I2S_PORT, &i2s_raw, sizeof(i2s_raw), &bytes_read, portMAX_DELAY);
+  esp_err_t res = i2s_read(I2S_PORT, &i2s_raw, sizeof(i2s_raw), &bytes_read, 50 / portTICK_PERIOD_MS);
   if (res != ESP_OK || bytes_read == 0) return;
 
   int count = bytes_read / sizeof(int32_t);
   int32_t max_chunk_amp = 0;
-  int16_t chunk_samples[VAD_CHUNK_SIZE];
 
   for (int i = 0; i < count; i++) {
     int16_t sample = (int16_t)(i2s_raw[i] >> 14);
-    chunk_samples[i] = sample;
     int32_t abs_s = abs((int32_t)sample);
     if (abs_s > max_chunk_amp) max_chunk_amp = abs_s;
 
@@ -424,7 +483,7 @@ void listenAndCaptureWithVAD() {
     pre_roll_idx = (pre_roll_idx + 1) % PRE_ROLL_SAMPLES;
   }
 
-  // Filtrar ruidos espurios: requerir que la amplitud supere el umbral sostenidamente (2 bloques consecutivos = ~32 ms)
+  // Comprobar persistencia del umbral VAD
   if (max_chunk_amp > VAD_THRESHOLD) {
     vad_consecutive_active_chunks++;
   } else {
@@ -432,39 +491,38 @@ void listenAndCaptureWithVAD() {
   }
 
   if (vad_consecutive_active_chunks >= 2) {
-    vad_consecutive_active_chunks = 0;
+    // Pasar al estado de grabación
+    transitionToState(STATE_RECORDING);
 
-    // 2. Estado GRABANDO / CAPTURANDO: LED ROJO
-    setLedColor(true, false, false);
-    Serial.println("\n[VAD ACTIVADO] Voz clara detectada. Capturando 1 segundo...");
-
-    size_t samples_captured = 0;
-
-    // Copiar el historial de audio previo (pre-roll) para conservar el inicio del fonema
+    // Cargar pre-roll en audio_buffer
+    samples_captured = 0;
     for (int i = 0; i < PRE_ROLL_SAMPLES && samples_captured < TARGET_SAMPLES; i++) {
       int read_pos = (pre_roll_idx + i) % PRE_ROLL_SAMPLES;
       audio_buffer[samples_captured++] = pre_roll_buffer[read_pos];
     }
+  }
+}
 
-    // Copiar el chunk que superó el umbral
+void processRecordingState() {
+  int32_t i2s_raw[VAD_CHUNK_SIZE];
+  size_t bytes_read = 0;
+
+  esp_err_t r = i2s_read(I2S_PORT, &i2s_raw, sizeof(i2s_raw), &bytes_read, 50 / portTICK_PERIOD_MS);
+  if (r == ESP_OK && bytes_read > 0) {
+    int count = bytes_read / sizeof(int32_t);
     for (int i = 0; i < count && samples_captured < TARGET_SAMPLES; i++) {
-      audio_buffer[samples_captured++] = chunk_samples[i];
+      audio_buffer[samples_captured++] = (int16_t)(i2s_raw[i] >> 14);
     }
+  }
 
-    // Continuar grabando en tiempo real hasta completar exactamente 1.0 segundo (16,000 muestras)
-    while (samples_captured < TARGET_SAMPLES) {
-      size_t b_read = 0;
-      esp_err_t r = i2s_read(I2S_PORT, &i2s_raw, sizeof(i2s_raw), &b_read, portMAX_DELAY);
-      if (r == ESP_OK && b_read > 0) {
-        int c = b_read / sizeof(int32_t);
-        for (int i = 0; i < c && samples_captured < TARGET_SAMPLES; i++) {
-          audio_buffer[samples_captured++] = (int16_t)(i2s_raw[i] >> 14);
-        }
-      }
-    }
+  // Si se completó exactamente 1.0 segundo (16,000 muestras), pasar a inferencia
+  if (samples_captured >= TARGET_SAMPLES) {
+    transitionToState(STATE_INFERENCE);
+  }
 
-    // 3. Procesar características y ejecutar inferencia TinyML
-    processAudioAndRunInference();
+  // Timeout de seguridad en caso de fallo I2S (máximo 1500 ms en grabación)
+  if (millis() - state_timer > 1500) {
+    transitionToState(STATE_COOLDOWN);
   }
 }
 
@@ -483,45 +541,58 @@ void setup() {
   setupI2S();
   setupTFLite();
 
-  // Estado LISTO: LED AZUL
-  setLedColor(false, false, true);
+  // Iniciar Máquina de Estados en modo escucha
+  transitionToState(STATE_LISTENING);
 
   Serial.println("\n=======================================================");
-  Serial.println("  LLAVE DE ACCESO BIOMETRICA AUTOMATICA CON VAD");
+  Serial.println("  LLAVE DE ACCESO BIOMETRICA CON FSM ROBUSTA & USB-HID");
   Serial.println("=======================================================");
-  Serial.println("  * VAD Automatico : Deteccion por umbral de volumen");
+  Serial.println("  * VAD Automatico : Deteccion con Pre-Roll (150ms)");
   Serial.println("  * LED Azul       : Escuchando continuamente...");
   Serial.println("  * LED Rojo       : Grabando palabra clave (1s)");
+  Serial.println("  * LED Blanco     : Procesando inferencia");
   Serial.println("  * LED Verde      : Acceso concedido (Inyeccion Token)");
   Serial.println("  * LED Rojo Flash : Acceso denegado");
-  Serial.println("  * LED Blanco     : Procesando inferencia");
   Serial.println("=======================================================\n");
   Serial.println("Sistema activo. Habla 'FORWARD' en cualquier momento...");
 }
 
 void loop() {
-  // Modo automático continuo con VAD
-  listenAndCaptureWithVAD();
+  // Manejo de la Máquina de Estados
+  switch (current_state) {
+    case STATE_LISTENING:
+      processListeningState();
+      break;
 
-  // Compatibilidad: también se puede forzar con 'g' por Serial
+    case STATE_RECORDING:
+      processRecordingState();
+      break;
+
+    case STATE_AUTH_SUCCESS:
+      // Mantener LED verde 1.5s antes de entrar a enfriamiento
+      if (millis() - state_timer >= 1500) {
+        transitionToState(STATE_COOLDOWN);
+      }
+      break;
+
+    case STATE_COOLDOWN:
+      // Enfriamiento de 400ms para evitar re-disparos inmediatos
+      if (millis() - state_timer >= 400) {
+        transitionToState(STATE_LISTENING);
+      }
+      break;
+
+    default:
+      transitionToState(STATE_LISTENING);
+      break;
+  }
+
+  // Compatibilidad: disparo manual con 'g' por Serial
   if (Serial.available() > 0) {
     char cmd = Serial.read();
     if (cmd == 'g' || cmd == 'G') {
-      setLedColor(true, false, false);
-      Serial.println("\n[DISPARO MANUAL] Grabando 1 segundo...");
-      size_t samples_read_total = 0;
-      int32_t raw_buffer[512];
-      while (samples_read_total < TARGET_SAMPLES) {
-        size_t bytes_read = 0;
-        esp_err_t result = i2s_read(I2S_PORT, &raw_buffer, sizeof(raw_buffer), &bytes_read, portMAX_DELAY);
-        if (result == ESP_OK && bytes_read > 0) {
-          int count = bytes_read / sizeof(int32_t);
-          for (int i = 0; i < count && samples_read_total < TARGET_SAMPLES; i++) {
-            audio_buffer[samples_read_total++] = (int16_t)(raw_buffer[i] >> 14);
-          }
-        }
-      }
-      processAudioAndRunInference();
+      transitionToState(STATE_RECORDING);
+      samples_captured = 0;
     }
   }
 }
