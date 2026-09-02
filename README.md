@@ -1,10 +1,10 @@
-# 🔑 ESP32-S3 Biometric Voice Key with TinyML & USB-HID
+# ESP32-S3 Biometric Voice Key with TinyML & USB-HID
 
 Sistema embebido de autenticación biométrica por reconocimiento de voz basado en **Edge AI / TinyML** ejecutándose sobre un microcontrolador **ESP32-S3** con micrófono digital I2S **INMP441** y emulación nativa de teclado **USB-HID**.
 
 ---
 
-## 🌟 Características Principales
+## Características Principales
 
 - **Detección Automática de Voz (VAD):** Monitoreo acústico continuo en tiempo real con umbral de amplitud y filtro de persistencia temporal para evitar falsos positivos.
 - **Pre-Roll Ring Buffer (150 ms):** Búfer circular en memoria RAM para capturar el fonema inicial completo de la palabra clave sin recortes.
@@ -25,29 +25,29 @@ Sistema embebido de autenticación biométrica por reconocimiento de voz basado 
   - Inyección de token de acceso como teclado USB nativo al superar criterios biométricos.
   - Higiene de memoria con sanitización instantánea (`memset(..., 0, ...)`) de buffers sensibles.
 - **Retroalimentación Visual con LED RGB Integrado:**
-  - 🔵 **Azul:** Modo de escucha continuo (Listo).
-  - 🔴 **Rojo:** Grabando palabra clave ("FORWARD").
-  - ⚪ **Blanco:** Procesando inferencia TinyML en tiempo real.
-  - 🟢 **Verde:** ✅ Autenticación exitosa (Token inyectado).
-  - 🚨 **Rojo Parpadeante:** ❌ Acceso denegado (No coincide la voz).
+  - **LED Azul:** Modo de escucha continuo (Listo).
+  - **LED Rojo:** Grabando palabra clave ("FORWARD").
+  - **LED Blanco:** Procesando inferencia TinyML en tiempo real.
+  - **LED Verde:** Autenticación exitosa (Token inyectado).
+  - **LED Rojo Parpadeante:** Acceso denegado (No coincide la voz).
 
 ---
 
-## 🛠️ Hardware Utilizado
+## Hardware Utilizado
 
 - **Microcontrolador:** Arduino Nano ESP32 / ESP32-S3 (240 MHz Xtensa LX7, 320 KB SRAM).
 - **Micrófono MEMS Digital:** INMP441 (I2S, 16-bit mono, 16 kHz).
 - **Conexión de Pines:**
-  - `SCK / BCLK` $\rightarrow$ GPIO D4
-  - `WS / LRCK` $\rightarrow$ GPIO D5
-  - `SD / DOUT` $\rightarrow$ GPIO D6
-  - `L/R` $\rightarrow$ GND (Canal Izquierdo)
-  - `VDD` $\rightarrow$ 3.3V
-  - `GND` $\rightarrow$ GND
+  - `SCK / BCLK` -> GPIO D4
+  - `WS / LRCK` -> GPIO D5
+  - `SD / DOUT` -> GPIO D6
+  - `L/R` -> GND (Canal Izquierdo)
+  - `VDD` -> 3.3V
+  - `GND` -> GND
 
 ---
 
-## 📂 Estructura del Repositorio
+## Estructura del Repositorio
 
 ```text
 ├── src/
@@ -64,7 +64,7 @@ Sistema embebido de autenticación biométrica por reconocimiento de voz basado 
 
 ---
 
-## 🚀 Compilación y Despliegue
+## Compilación y Despliegue
 
 1. Clonar el repositorio:
    ```bash

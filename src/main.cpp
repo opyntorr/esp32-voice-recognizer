@@ -99,7 +99,7 @@ void setupI2S() {
 void setupTFLite() {
   model = tflite::GetModel(g_model);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
-    Serial.println("❌ Error: Versión de esquema TFLite no coincide.");
+    Serial.println("[ERROR] Version de esquema TFLite no coincide.");
     return;
   }
 
@@ -110,7 +110,7 @@ void setupTFLite() {
 
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
-    Serial.println("❌ Error asignando Tensor Arena.");
+    Serial.println("[ERROR] Error asignando Tensor Arena.");
     tflite_initialized = false;
     return;
   }
@@ -118,7 +118,7 @@ void setupTFLite() {
   input_tensor = interpreter->input(0);
   output_tensor = interpreter->output(0);
   tflite_initialized = true;
-  Serial.println("✅ TFLite Micro Inicializado correctamente.");
+  Serial.println("[OK] TFLite Micro Inicializado correctamente.");
 }
 
 // =========================================================================
@@ -154,7 +154,7 @@ void injectMasterKeyCredential() {
   memset(derived_key, 0, sizeof(derived_key));
   memset(hex_str, 0, sizeof(hex_str));
 
-  Serial.println("🔐 Credencial derivada inyectada por USB-HID con éxito.");
+  Serial.println(" Credencial derivada inyectada por USB-HID con éxito.");
 }
 
 // =========================================================================
@@ -212,13 +212,13 @@ void compute_fft_512(float* xr, float* xi) {
 // =========================================================================
 void processAudioAndRunInference() {
   if (!tflite_initialized || input_tensor == nullptr || output_tensor == nullptr) {
-    Serial.println("⚠️ No se puede ejecutar inferencia: TFLite Micro no inicializado.");
+    Serial.println("[ERROR] No se puede ejecutar inferencia: TFLite Micro no inicializado.");
     return;
   }
 
   // LED BLANCO = PROCESANDO INFERENCIA
   setLedColor(true, true, true);
-  Serial.println("⚙️ Procesando audio (STFT + 40 Mel + DCT + CMVN)...");
+  Serial.println("[DSP] Procesando audio (STFT + 40 Mel + DCT + CMVN)...");
   unsigned long start_dsp = millis();
 
   // 1. Normalización por Valor Pico al 95% directamente sobre audio_buffer
@@ -335,7 +335,7 @@ void processAudioAndRunInference() {
   TfLiteStatus invoke_status = interpreter->Invoke();
   unsigned long infer_time = millis() - start_time;
   if (invoke_status != kTfLiteOk) {
-    Serial.println("❌ Error ejecutando inferencia TFLite.");
+    Serial.println(" Error ejecutando inferencia TFLite.");
     return;
   }
 
@@ -347,7 +347,7 @@ void processAudioAndRunInference() {
   float p_impostor = (output_tensor->data.int8[1] - out_zero_point) * out_scale;
   float p_noise = (output_tensor->data.int8[2] - out_zero_point) * out_scale;
 
-  Serial.println("\n📊 --- RESULTADO DE AUTENTICACIÓN BIOMÉTRICA ---");
+  Serial.println("\n --- RESULTADO DE AUTENTICACIÓN BIOMÉTRICA ---");
   Serial.print("Latencia Inferencia: "); Serial.print(infer_time); Serial.println(" ms");
   Serial.print("P(Usuario Legítimo): "); Serial.println(p_target, 4);
   Serial.print("P(Impostor Control): "); Serial.println(p_impostor, 4);
@@ -359,7 +359,7 @@ void processAudioAndRunInference() {
   bool cond3 = (p_noise < 0.20f);                        // Filtro contra Ruido
 
   if (cond1 && cond2 && cond3) {
-    Serial.println("🟢 ✅ AUTENTICACIÓN EXITOSA: ¡Usuario Reconocido!");
+    Serial.println("[OK] AUTENTICACION EXITOSA: Usuario Reconocido");
     consecutive_failures = 0;
 
     // LED VERDE BRILANTE (1 segundo)
@@ -370,7 +370,7 @@ void processAudioAndRunInference() {
 
     delay(1500);
   } else {
-    Serial.println("🔴 ❌ ACCESO DENEGADO: Muestra no cumple criterios biométricos.");
+    Serial.println("[DENEGADO] Muestra no cumple criterios biometricos.");
     consecutive_failures++;
 
     // LED ROJO PARPADEANTE (Error breve)
@@ -389,7 +389,7 @@ void processAudioAndRunInference() {
 // =========================================================================
 // PARÁMETROS VAD (DETECCIÓN DE ACTIVIDAD DE VOZ)
 // =========================================================================
-#define VAD_THRESHOLD          32000    // Umbral de amplitud acústica de voz deliberada
+#define VAD_THRESHOLD          8500    // Umbral de amplitud acústica de voz deliberada
 #define VAD_CHUNK_SIZE         256     // Tamaño de bloque de lectura continua I2S
 #define PRE_ROLL_SAMPLES       2400    // 150 ms de audio previo para no cortar el inicio
 
@@ -436,7 +436,7 @@ void listenAndCaptureWithVAD() {
 
     // 2. Estado GRABANDO / CAPTURANDO: LED ROJO
     setLedColor(true, false, false);
-    Serial.println("\n🎙️ [VAD ACTIVADO] Voz clara detectada. Capturando 1 segundo...");
+    Serial.println("\n[VAD ACTIVADO] Voz clara detectada. Capturando 1 segundo...");
 
     size_t samples_captured = 0;
 
@@ -487,16 +487,16 @@ void setup() {
   setLedColor(false, false, true);
 
   Serial.println("\n=======================================================");
-  Serial.println(" 🔑 LLAVE DE ACCESO BIOMÉTRICA AUTOMÁTICA CON VAD");
+  Serial.println("  LLAVE DE ACCESO BIOMETRICA AUTOMATICA CON VAD");
   Serial.println("=======================================================");
-  Serial.println("  • VAD Automático : Detección por umbral de volumen");
-  Serial.println("  • LED Azul       : Escuchando continuamente...");
-  Serial.println("  • LED Rojo       : Grabando palabra clave (1s)");
-  Serial.println("  • LED Verde      : ✅ Acceso concedido (Inyección Token)");
-  Serial.println("  • LED Rojo Flash : ❌ Acceso denegado");
-  Serial.println("  • LED Blanco     : ⚙️ Procesando inferencia");
+  Serial.println("  * VAD Automatico : Deteccion por umbral de volumen");
+  Serial.println("  * LED Azul       : Escuchando continuamente...");
+  Serial.println("  * LED Rojo       : Grabando palabra clave (1s)");
+  Serial.println("  * LED Verde      : Acceso concedido (Inyeccion Token)");
+  Serial.println("  * LED Rojo Flash : Acceso denegado");
+  Serial.println("  * LED Blanco     : Procesando inferencia");
   Serial.println("=======================================================\n");
-  Serial.println("👂 Sistema activo. Habla 'FORWARD' en cualquier momento...");
+  Serial.println("Sistema activo. Habla 'FORWARD' en cualquier momento...");
 }
 
 void loop() {
@@ -508,7 +508,7 @@ void loop() {
     char cmd = Serial.read();
     if (cmd == 'g' || cmd == 'G') {
       setLedColor(true, false, false);
-      Serial.println("\n🔴 [DISPARO MANUAL] Grabando 1 segundo...");
+      Serial.println("\n[DISPARO MANUAL] Grabando 1 segundo...");
       size_t samples_read_total = 0;
       int32_t raw_buffer[512];
       while (samples_read_total < TARGET_SAMPLES) {

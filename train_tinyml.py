@@ -29,7 +29,7 @@ IMPOSTOR_DIR = os.path.join(PROCESSED_DIR, "impostors_control")
 NOISE_DIR = os.path.join(PROCESSED_DIR, "background_noise")
 
 print("=======================================================================")
-print(" 🤖 ENTRENADOR TINYML CNN & CONVERTIDOR INT8 PARA ESP32-S3")
+print("  ENTRENADOR TINYML CNN & CONVERTIDOR INT8 PARA ESP32-S3")
 print("=======================================================================")
 
 def hz_to_mel(hz):
@@ -123,7 +123,7 @@ def load_dataset():
                 X.append(feat)
                 y.append(label)
 
-    print("📊 Extrayendo MFCCs + CMVN de las 3 clases...")
+    print(" Extrayendo MFCCs + CMVN de las 3 clases...")
     load_from_folder(TARGET_DIR, 0)     # Clase 0: target_user
     load_from_folder(IMPOSTOR_DIR, 1)   # Clase 1: impostors_control
     load_from_folder(NOISE_DIR, 2)      # Clase 2: background_noise
@@ -134,7 +134,7 @@ def load_dataset():
 
 # Cargar dataset
 X, y = load_dataset()
-print(f"✅ Dataset listo. Forma de tensores de entrada X: {X.shape}, Etiquetas y: {y.shape}")
+print(f" Dataset listo. Forma de tensores de entrada X: {X.shape}, Etiquetas y: {y.shape}")
 
 # Mezclar y dividir en Entrenamiento (80%) y Validación (20%)
 indices = np.arange(len(X))
@@ -185,7 +185,7 @@ model.compile(
     metrics=['accuracy']
 )
 
-print("\n🚀 Entrenando Modelo CNN TinyML...")
+print("\n Entrenando Modelo CNN TinyML...")
 history = model.fit(
     X_train, y_train,
     epochs=40,
@@ -197,7 +197,7 @@ history = model.fit(
 # =========================================================================
 # CUANTIZACIÓN INT8 COMPLETA (POST-TRAINING QUANTIZATION)
 # =========================================================================
-print("\n⚡ Aplicando Cuantización INT8 estricta para TFLite Micro...")
+print("\n Aplicando Cuantización INT8 estricta para TFLite Micro...")
 
 def representative_dataset_gen():
     for i in range(min(100, len(X_train))):
@@ -217,13 +217,13 @@ tflite_path = "model_quantized.tflite"
 with open(tflite_path, "wb") as f:
     f.write(tflite_quant_model)
 
-print(f"✅ Modelo INT8 Cuantizado guardado en: {tflite_path} ({len(tflite_quant_model) / 1024:.2f} KB)")
+print(f" Modelo INT8 Cuantizado guardado en: {tflite_path} ({len(tflite_quant_model) / 1024:.2f} KB)")
 
 # =========================================================================
 # EXPORTACIÓN A ARREGLO DE DATOS C++ (model_data.h)
 # =========================================================================
 header_path = os.path.join("src", "model_data.h")
-print(f"📦 Generando encabezado C++ para ESP32 en: {header_path}...")
+print(f" Generando encabezado C++ para ESP32 en: {header_path}...")
 
 with open(header_path, "w") as f:
     f.write("// ARCHIVO GENERADO AUTOMÁTICAMENTE - MODELO TINYML INT8 PARA ESP32-S3\n")
@@ -243,4 +243,4 @@ with open(header_path, "w") as f:
     f.write(f"const unsigned int g_model_len = {len(tflite_quant_model)};\n\n")
     f.write("#endif // MODEL_DATA_H_\n")
 
-print(f"🎉 ¡ÉXITO! Modelo exportado a C++ en '{header_path}'. ¡Listo para compilar en ESP32-S3!")
+print(f" ¡ÉXITO! Modelo exportado a C++ en '{header_path}'. ¡Listo para compilar en ESP32-S3!")

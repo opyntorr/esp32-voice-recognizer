@@ -19,9 +19,9 @@ try:
     
     # Enviar comando 'p' para activar el flujo de datos
     ser.write(b'p\n')
-    print(" 🟢 Modo Graficador (Plotter) Activado en el ESP32!")
+    print("  Modo Graficador (Plotter) Activado en el ESP32!")
 except Exception as e:
-    print(f"❌ Error al abrir puerto {PORT}: {e}")
+    print(f" Error al abrir puerto {PORT}: {e}")
     print("Asegúrate de cerrar el Serial Monitor de PlatformIO antes de ejecutar este script.")
     exit(1)
 
@@ -44,7 +44,7 @@ def update(frame):
     while ser.in_waiting > 0:
         try:
             line_str = ser.readline().decode('utf-8', errors='ignore').strip()
-            if line_str and not line_str.startswith("---") and not line_str.startswith("🟢"):
+            if line_str and not line_str.startswith("---") and not line_str.startswith(""):
                 val = int(line_str)
                 data_deque.append(val)
         except ValueError:
@@ -63,7 +63,7 @@ def on_close(event):
     try:
         ser.write(b'p\n')  # Desactivar modo plotter al cerrar la ventana
         ser.close()
-        print("🟢 Puerto Serie Cerrado.")
+        print(" Puerto Serie Cerrado.")
     except Exception:
         pass
 
@@ -71,5 +71,5 @@ fig.canvas.mpl_connect('close_event', on_close)
 
 ani = animation.FuncAnimation(fig, update, interval=20, blit=True, cache_frame_data=False)
 
-print("\n🚀 Abriendo osciloscopio gráfico... Habla frente al micrófono para ver tu onda de voz!")
+print("\n Abriendo osciloscopio gráfico... Habla frente al micrófono para ver tu onda de voz!")
 plt.show()

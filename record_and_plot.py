@@ -27,16 +27,16 @@ if not os.path.exists(LOG_CSV):
         writer.writerow(["ID", "Fecha_Hora", "Etiqueta", "Archivo_WAV", "Archivo_PNG", "Duracion_s", "Amplitud_Pico", "Promedio_RMS", "Diagnostico"])
 
 print("\n=======================================================")
-print(" 🎙️ TINYML DATASET RECORDER & ACOUSTIC PLOTTER")
+print("  TINYML DATASET RECORDER & ACOUSTIC PLOTTER")
 print("=======================================================")
 
 try:
     ser = serial.Serial(PORT, BAUD, timeout=3)
     time.sleep(1.5)
     ser.reset_input_buffer()
-    print(f"🟢 Conectado exitosamente al ESP32 en {PORT}\n")
+    print(f" Conectado exitosamente al ESP32 en {PORT}\n")
 except Exception as e:
-    print(f"❌ Error conectando a {PORT}: {e}")
+    print(f" Error conectando a {PORT}: {e}")
     print("Asegúrate de cerrar cualquier Monitor Serie abierto.")
     exit(1)
 
@@ -56,8 +56,8 @@ if existing_files:
         sample_count = max(indices) + 1
 
 def record_single_sample(label_name, index_num):
-    print(f"\n🔴 [GRABANDO] Muestra #{index_num:03d} - Etiqueta: [{label_name}]")
-    print(" 🎙️ Habla AHORA durante 2 segundos...")
+    print(f"\n [GRABANDO] Muestra #{index_num:03d} - Etiqueta: [{label_name}]")
+    print("  Habla AHORA durante 2 segundos...")
     
     ser.reset_input_buffer()
     ser.write(b'b')  # Enviar comando 'b' para solicitar PCM binario
@@ -71,7 +71,7 @@ def record_single_sample(label_name, index_num):
             pcm_bytes.extend(chunk)
 
     if len(pcm_bytes) < EXPECTED_BYTES:
-        print(f"⚠️ Atención: Se leyeron {len(pcm_bytes)} bytes de {EXPECTED_BYTES} esperados.")
+        print(f" Atención: Se leyeron {len(pcm_bytes)} bytes de {EXPECTED_BYTES} esperados.")
         pcm_bytes.extend(b'\x00' * (EXPECTED_BYTES - len(pcm_bytes)))
 
     audio_data = np.frombuffer(pcm_bytes, dtype=np.int16)
@@ -125,10 +125,10 @@ def record_single_sample(label_name, index_num):
         writer = csv.writer(f)
         writer.writerow([index_num, timestamp_str, label_name, wav_path, png_path, RECORD_TIME_SEC, peak_val, rms_val, diag_str])
 
-    print(f"🟢 [GUARDADO EXITOSO]")
-    print(f"   🔊 Audio WAV : {wav_path}")
-    print(f"   🖼️ Gráfica   : {png_path}")
-    print(f"   📊 Métricas  : Pico = {peak_val} | RMS = {rms_val} [{diag_str}]\n")
+    print(f" [GUARDADO EXITOSO]")
+    print(f"    Audio WAV : {wav_path}")
+    print(f"    Gráfica   : {png_path}")
+    print(f"    Métricas  : Pico = {peak_val} | RMS = {rms_val} [{diag_str}]\n")
 
 while True:
     print("-------------------------------------------------------")
@@ -141,35 +141,35 @@ while True:
     print("  [3]      -> Etiqueta: 'ruido_fondo'")
     print("  [q]      -> Salir")
     
-    cmd = input("\n👉 Elige opción: ").strip().lower()
+    cmd = input("\n Elige opción: ").strip().lower()
 
     if cmd == 'q':
         break
     elif cmd == '1':
         current_label = "mi_voz"
-        print("✅ Etiqueta activa: mi_voz")
+        print(" Etiqueta activa: mi_voz")
         continue
     elif cmd == '2':
         current_label = "otra_voz"
-        print("✅ Etiqueta activa: otra_voz")
+        print(" Etiqueta activa: otra_voz")
         continue
     elif cmd == '3':
         current_label = "ruido_fondo"
-        print("✅ Etiqueta activa: ruido_fondo")
+        print(" Etiqueta activa: ruido_fondo")
         continue
     elif cmd == 'c':
-        print("\n🚀 INICIANDO MODO AUTOMÁTICO CONTINUO...")
+        print("\n INICIANDO MODO AUTOMÁTICO CONTINUO...")
         print("El sistema grabará cada 2 segundos. Presiona Ctrl+C para detener.\n")
         try:
             while True:
                 for i in range(2, 0, -1):
-                    print(f"⏱️ Preparado en {i}...", end="\r", flush=True)
+                    print(f" Preparado en {i}...", end="\r", flush=True)
                     time.sleep(0.8)
                 record_single_sample(current_label, sample_count)
                 sample_count += 1
                 time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\n⏸️ Modo automático detenido por el usuario.")
+            print("\n Modo automático detenido por el usuario.")
             continue
     else:
         record_single_sample(current_label, sample_count)

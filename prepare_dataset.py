@@ -24,7 +24,7 @@ SAMPLE_RATE = 16000
 TARGET_SAMPLES = 16000  # 1.0 segundo exacto
 
 print("=======================================================================")
-print(" 🛠️ PREPARACIÓN Y NORMALIZACIÓN DE DATASET (1.0s / 16 kHz)")
+print("  PREPARACIÓN Y NORMALIZACIÓN DE DATASET (1.0s / 16 kHz)")
 print("=======================================================================")
 
 def process_audio_file(filepath, target_samples=16000, norm_peak=0.95, alpha=0.97):
@@ -75,7 +75,7 @@ def process_audio_file(filepath, target_samples=16000, norm_peak=0.95, alpha=0.9
 # -------------------------------------------------------------------------
 # 1. Procesar Muestras del Usuario (target_user: IDs 14 a 161)
 # -------------------------------------------------------------------------
-print("\n1️⃣ Procesando muestras personales ('target_user')...")
+print("\n1⃣ Procesando muestras personales ('target_user')...")
 user_count = 0
 for f in sorted(os.listdir(WAV_DIR)):
     if f.endswith(".wav"):
@@ -96,12 +96,12 @@ for f in sorted(os.listdir(WAV_DIR)):
         except Exception:
             pass
 
-print(f"   ✅ {user_count} muestras de 'target_user' recortadas a 1.0s, normalizadas y pre-enfatizadas.")
+print(f"    {user_count} muestras de 'target_user' recortadas a 1.0s, normalizadas y pre-enfatizadas.")
 
 # -------------------------------------------------------------------------
 # 2. Procesar Ruido de Fondo (background_noise: IDs 162 en adelante)
 # -------------------------------------------------------------------------
-print("\n2️⃣ Procesando muestras de ruido de fondo ('background_noise')...")
+print("\n2⃣ Procesando muestras de ruido de fondo ('background_noise')...")
 noise_count = 0
 for f in sorted(os.listdir(WAV_DIR)):
     if f.endswith(".wav"):
@@ -121,27 +121,27 @@ for f in sorted(os.listdir(WAV_DIR)):
         except Exception:
             pass
 
-print(f"   ✅ {noise_count} muestras de 'background_noise' procesadas.")
+print(f"    {noise_count} muestras de 'background_noise' procesadas.")
 
 # -------------------------------------------------------------------------
 # 3. Descargar/Extraer Muestras "forward" de Google Speech Commands v2
 # -------------------------------------------------------------------------
-print("\n3️⃣ Obteniendo muestras impostoras de Google Speech Commands v2 ('forward')...")
+print("\n3⃣ Obteniendo muestras impostoras de Google Speech Commands v2 ('forward')...")
 
 GSC_TAR_URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
 GSC_TAR_PATH = os.path.join(DATASET_DIR, "speech_commands_v0.02.tar.gz")
 
 if not os.path.exists(GSC_TAR_PATH):
-    print("   ⬇️ Descargando Google Speech Commands v2 dataset (~2.4 GB, puede tomar un par de minutos)...")
+    print("   ⬇ Descargando Google Speech Commands v2 dataset (~2.4 GB, puede tomar un par de minutos)...")
     try:
         urllib.request.urlretrieve(GSC_TAR_URL, GSC_TAR_PATH)
-        print("   ✅ Descarga completada.")
+        print("    Descarga completada.")
     except Exception as e:
-        print(f"   ⚠️ Error descargando dataset completo: {e}")
+        print(f"    Error descargando dataset completo: {e}")
 
 impostor_count = 0
 if os.path.exists(GSC_TAR_PATH):
-    print("   📦 Extrayendo muestras de la carpeta 'forward' de Google Speech Commands...")
+    print("    Extrayendo muestras de la carpeta 'forward' de Google Speech Commands...")
     with tarfile.open(GSC_TAR_PATH, "r:gz") as tar:
         for member in tar:
             if ("./forward/" in member.name or "forward/" in member.name) and member.name.endswith(".wav"):
@@ -167,10 +167,10 @@ if os.path.exists(GSC_TAR_PATH):
                     if impostor_count >= 400:
                         break
 
-print(f"   ✅ {impostor_count} muestras de impostores 'forward' procesadas a 1.0s.")
+print(f"    {impostor_count} muestras de impostores 'forward' procesadas a 1.0s.")
 
 print("\n=======================================================================")
-print(" 🚀 DATASET PROCESADO Y ALINEADO CON ÉXITO")
+print("  DATASET PROCESADO Y ALINEADO CON ÉXITO")
 print("=======================================================================")
 print(f"  • target_user (Tus muestras)       : {user_count} archivos en {TARGET_DIR}")
 print(f"  • impostors_control (Otras voces)  : {impostor_count} archivos en {IMPOSTOR_DIR}")
