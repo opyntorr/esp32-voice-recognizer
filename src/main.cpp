@@ -141,47 +141,56 @@ void transitionToState(SystemState new_state);
 void processAudioAndRunInference();
 
 // =========================================================================
-// DERIVACIÓN DE CLAVE MAESTRA CRIPTOGRÁFICA (SHA-256 KDF) & INYECCIÓN USB
+// DERIVACIÓN DETERMINISTA DE CLAVE MAESTRA LIGADA AL SILICIO (eFuse MAC + SHA-256)
 // =========================================================================
 #include "mbedtls/sha256.h"
+#include <esp_mac.h>
 
 void injectMasterKeyCredential() {
-  uint8_t hardware_seed[32];
-  // Utilizar el Generador de Números Aleatorios Verdaderos (TRNG) del ESP32-S3
-  for (int i = 0; i < 32; i += 4) {
-    uint32_t r = esp_random();
-    memcpy(hardware_seed + i, &r, 4);
-  }
+  // 1. Obtener la dirección MAC única grabada en los eFuses de fábrica del ESP32-S3
+  uint8_t chip_mac[6] = {0};
+  esp_read_mac(chip_mac, ESP_MAC_WIFI_STA);
+
+  // 2. Sal criptográfica constante de dominio para la llave biométrica
+  const char* domain_salt = "BIOMETRIC_KEY_ESP32S3_HARDWARE_BOUND_ROOT_v1";
+
+  // 3. Derivación criptográfica SHA-256 ligada permanentemente a este silicio
+  mbedtls_sha256_context sha_ctx;
+  mbedtls_sha256_init(&sha_ctx);
+  mbedtls_sha256_starts_ret(&sha_ctx, 0); // Modo SHA-256 estándar
+
+  // Hashear la identidad del hardware físico del chip
+  mbedtls_sha256_update_ret(&sha_ctx, chip_mac, sizeof(chip_mac));
+  mbedtls_sha256_update_ret(&sha_ctx, (const uint8_t*)domain_salt, strlen(domain_salt));
 
   uint8_t derived_key[32];
-  // Derivación criptográfica SHA256 (KDF)
-  mbedtls_sha256_ret(hardware_seed, sizeof(hardware_seed), derived_key, 0);
+  mbedtls_sha256_finish_ret(&sha_ctx, derived_key);
+  mbedtls_sha256_free(&sha_ctx);
 
-  // Convertir a cadena hexadecimal para inyección USB-HID
+  // 4. Convertir a cadena hexadecimal permanente (64 caracteres)
   char hex_str[65];
   for (int i = 0; i < 32; i++) {
     sprintf(hex_str + (i * 2), "%02x", derived_key[i]);
   }
   hex_str[64] = '\0';
 
-  // Inyección carácter por carácter con retardo para evitar desbordamiento del endpoint HID
-  // y asegurar que el sistema operativo reciba cada pulsación sin que se trabe ninguna tecla
+  // 5. Inyección carácter por carácter con retardo para USB-HID estable
   for (int i = 0; i < 64; i++) {
     Keyboard.write((uint8_t)hex_str[i]);
-    delay(12); // Tiempo suficiente para que el stack TinyUSB procese el informe
+    delay(12);
   }
   Keyboard.write((uint8_t)KEY_RETURN);
   delay(20);
 
-  // Seguridad fundamental: liberar explícitamente cualquier tecla residual
+  // Liberar cualquier tecla residual
   Keyboard.releaseAll();
 
-  // Sobrescribir inmediatamente la memoria RAM sensible con ceros
-  memset(hardware_seed, 0, sizeof(hardware_seed));
+  // Sanitización instantánea de memoria RAM
+  memset(chip_mac, 0, sizeof(chip_mac));
   memset(derived_key, 0, sizeof(derived_key));
   memset(hex_str, 0, sizeof(hex_str));
 
-  Serial.println("[HID] Credencial derivada inyectada por USB-HID con exito.");
+  Serial.println("[HID] Credencial de hardware unica inyectada por USB-HID con exito.");
 }
 
 // =========================================================================
