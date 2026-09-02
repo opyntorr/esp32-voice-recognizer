@@ -1,0 +1,9 @@
+.pio/
+.vscode/
+__pycache__/
+*.pyc
+
+# Archivos pesados y binarios temporales
+dataset/speech_commands_v0.02.tar.gz
+dataset/plots/
+*.exe

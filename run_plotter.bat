@@ -1,0 +1,3 @@
+@echo off
+echo Abriendo Osciloscopio en Tiempo Real para INMP441...
+C:\Users\omarp\.platformio\penv\Scripts\python.exe plotter.py
