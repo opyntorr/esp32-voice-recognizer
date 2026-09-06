@@ -20,10 +20,14 @@ Sistema embebido de autenticación biométrica por reconocimiento de voz basado 
   - Arquitectura profunda compacta (< 11k parámetros).
   - Cuantización Post-Entrenamiento (PTQ) completa a INT8 en **TensorFlow Lite Micro**.
   - Precisión de validación > 97%.
-- **Seguridad Criptográfica & USB-HID:**
-  - Derivación criptográfica SHA-256 (KDF) a partir del TRNG por hardware del silicio.
-  - Inyección de token de acceso como teclado USB nativo al superar criterios biométricos.
-  - Higiene de memoria con sanitización instantánea (`memset(..., 0, ...)`) de buffers sensibles.
+- **Arquitectura de Software Robusta (FSM No Bloqueante):**
+  - Máquina de Estados Finitos (`LISTENING` -> `RECORDING` -> `INFERENCE` -> `AUTH` -> `COOLDOWN`).
+  - Purga activa de buffers DMA I2S (`i2s_zero_dma_buffer`) para evitar desincronizaciones o bloqueos tras autenticación.
+  - Control de flujo en inyección USB-HID con retardo inter-carácter y liberación forzada (`releaseAll`).
+- **Seguridad Criptográfica Ligada al Silicio:**
+  - Derivación determinista SHA-256 (KDF) ligada a los eFuses físicos del ESP32-S3 (`esp_read_mac`).
+  - La contraseña maestra es fija, única e imposible de replicar en otra placa física.
+  - Higiene de memoria con sanitización instantánea (`memset(..., 0, ...)`) de buffers sensibles tras inyección.
 - **Retroalimentación Visual con LED RGB Integrado:**
   - **LED Azul:** Modo de escucha continuo (Listo).
   - **LED Rojo:** Grabando palabra clave ("FORWARD").
