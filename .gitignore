@@ -7,3 +7,7 @@ __pycache__/
 dataset/speech_commands_v0.02.tar.gz
 dataset/plots/
 *.exe
+
+node_modules/
+package.json
+package-lock.json
